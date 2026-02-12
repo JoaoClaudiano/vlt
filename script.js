@@ -1,101 +1,82 @@
 import { vltData } from './data.js';
 
-// Inicializa o mapa centralizado em Fortaleza
+// 1. Configuração Inicial do Mapa
 const map = L.map('map').setView([-3.7432, -38.5144], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+}).addTo(map);
 
-const trainMarkers = [];
+let trainMarkers = [];
 
-function hParaM(horaStr) {
-    const [h, m] = horaStr.split(':').map(Number);
+// Auxiliar: Converte "HH:mm" para minutos totais do dia
+const hParaM = (hStr) => {
+    const [h, m] = hStr.split(':').map(Number);
     return h * 60 + m;
-}
+};
 
-function atualizarPosicoes() {
+// 2. Função de Processamento de Viagem
+function processarTrens(horarios, sequencia, sentido) {
     const agora = new Date();
+    // Use uma hora fixa para teste se quiser ver funcionando fora do horário comercial:
+    // const minAgora = hParaM("08:10"); 
     const minAgora = agora.getHours() * 60 + agora.getMinutes();
     
-    // Limpa trens antigos do mapa
-    trainMarkers.forEach(m => map.removeLayer(m));
-    
-    const estacoesLista = Object.keys(vltData.estacoes);
-    
-    // Checar sentido Iate [cite: 4]
-    vltData.horariosIate.forEach(viagem => {
-        const inicio = hParaM(viagem[0]);
-        const fim = hParaM(viagem[10]);
+    horarios.forEach((viagem) => {
+        const inicioViagem = hParaM(viagem[0]);
+        const fimViagem = hParaM(viagem[viagem.length - 1]);
 
-        if (minAgora >= inicio && minAgora <= fim) {
+        // Verifica se há um trem nesta viagem circulando agora
+        if (minAgora >= inicioViagem && minAgora <= fimViagem) {
             for (let i = 0; i < viagem.length - 1; i++) {
                 const partida = hParaM(viagem[i]);
                 const chegada = hParaM(viagem[i+1]);
 
                 if (minAgora >= partida && minAgora < chegada) {
                     const progresso = (minAgora - partida) / (chegada - partida);
-                    desenharTrem(estacoesLista[i], estacoesLista[i+1], progresso, "Iate");
+                    renderizarTremNoMapa(sequencia[i], sequencia[i+1], progresso, sentido, viagem[i+1]);
                 }
             }
         }
     });
 }
 
-function desenharTrem(est1, est2, progresso, sentido) {
-    const coord1 = vltData.estacoes[est1];
-    const coord2 = vltData.estacoes[est2];
+// 3. Desenha o ícone no mapa com interpolação
+function renderizarTremNoMapa(est1, est2, progresso, sentido, proxHora) {
+    const c1 = vltData.estacoes[est1];
+    const c2 = vltData.estacoes[est2];
 
-    // Interpolação linear da posição
-    const lat = coord1.lat + (coord2.lat - coord1.lat) * progresso;
-    const lng = coord1.lng + (coord2.lng - coord1.lng) * progresso;
+    const lat = c1.lat + (c2.lat - c1.lat) * progresso;
+    const lng = c1.lng + (c2.lng - c1.lng) * progresso;
 
     const marker = L.circleMarker([lat, lng], {
         color: sentido === 'Iate' ? 'blue' : 'green',
-        radius: 8,
-        fillOpacity: 0.8
-    }).addTo(map).bindPopup(`Trem sentido ${sentido}<br>Próxima: ${est2}`);
-    
+        fillColor: sentido === 'Iate' ? '#30f' : '#0a0',
+        fillOpacity: 1,
+        radius: 9
+    }).addTo(map);
+
+    marker.bindPopup(`<b>VLT - Sentido ${sentido}</b><br>Próxima parada: ${est2} às ${proxHora}`);
     trainMarkers.push(marker);
-    document.getElementById('info').innerHTML = `Trem detectado em direção ao <b>${sentido}</b>.`;
-}
-import { vltData } from './data.js';
-
-function testarLocalizacao(horaSimulada) {
-    console.log(`--- Testando para o horário: ${horaSimulada} ---`);
-    
-    const hParaM = (hStr) => {
-        const [h, m] = hStr.split(':').map(Number);
-        return h * 60 + m;
-    };
-
-    const minSimulados = hParaM(horaSimulada);
-    let tremEncontrado = false;
-
-    // Testando Sentido Iate
-    vltData.horariosIate.forEach((viagem, index) => {
-        const inicioViagem = hParaM(viagem[0]);
-        const fimViagem = hParaM(viagem[10]);
-
-        if (minSimulados >= inicioViagem && minSimulados <= fimViagem) {
-            for (let i = 0; i < viagem.length - 1; i++) {
-                const partida = hParaM(viagem[i]);
-                const chegada = hParaM(viagem[i+1]);
-
-                if (minSimulados >= partida && minSimulados < chegada) {
-                    tremEncontrado = true;
-                    const progresso = ((minSimulados - partida) / (chegada - partida) * 100).toFixed(0);
-                    console.log(`[SENTIDO IATE] Trem da viagem ${index + 1}:`);
-                    console.log(`> Localização: Entre ${vltData.sequenciaIate[i]} e ${vltData.sequenciaIate[i+1]}`);
-                    console.log(`> Progresso no trecho: ${progresso}%`);
-                }
-            }
-        }
-    });
-
-    if (!tremEncontrado) console.log("Nenhum trem em circulação neste horário.");
 }
 
-// EXECUTE O TESTE AQUI:
-testarLocalizacao("08:10");
+// 4. Loop de Atualização
+function atualizarMapa() {
+    // Remove marcadores anteriores
+    trainMarkers.forEach(m => map.removeLayer(m));
+    trainMarkers = [];
 
-// Atualiza a cada 10 segundos
-setInterval(atualizarPosicoes, 10000);
-atualizarPosicoes();
+    // Processa os dois sentidos do PDF [cite: 4, 8]
+    processarTrens(vltData.horariosIate, vltData.sequenciaIate, "Iate");
+    processarTrens(vltData.horariosParangaba, vltData.sequenciaParangaba, "Parangaba");
+
+    const statusDiv = document.getElementById('status');
+    if (trainMarkers.length === 0) {
+        statusDiv.innerHTML = "Nenhum trem em operação agora.";
+    } else {
+        statusDiv.innerHTML = `${trainMarkers.length} trem(ns) detectado(s).`;
+    }
+}
+
+// Inicia o sistema
+atualizarMapa();
+setInterval(atualizarMapa, 30000); // Atualiza a cada 30 segundos
