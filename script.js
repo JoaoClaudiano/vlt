@@ -1,82 +1,79 @@
 import { vltData } from './data.js';
 
-// 1. Configuração Inicial do Mapa
 const map = L.map('map').setView([-3.7432, -38.5144], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-}).addTo(map);
-//
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// 1. Desenhar Estações Fixas (Pins Cinzas)
+Object.entries(vltData.estacoes).forEach(([nome, coords]) => {
+    L.circleMarker([coords.lat, coords.lng], {
+        radius: 5,
+        color: '#666',
+        fillColor: '#fff',
+        fillOpacity: 1,
+        weight: 2
+    }).addTo(map).bindTooltip(nome, { permanent: false, direction: 'top' });
+});
+
 let trainMarkers = [];
 
-// Auxiliar: Converte "HH:mm" para minutos totais do dia
 const hParaM = (hStr) => {
     const [h, m] = hStr.split(':').map(Number);
     return h * 60 + m;
 };
 
-// 2. Função de Processamento de Viagem
-function processarTrens(horarios, sequencia, sentido) {
-    const agora = new Date();
-    // Use uma hora fixa para teste se quiser ver funcionando fora do horário comercial:
+function atualizarMapa() {
+    trainMarkers.forEach(m => map.removeLayer(m));
+    trainMarkers = [];
+
+    // Para teste rápido fora de horário, você pode descomentar a linha abaixo:
     // const minAgora = hParaM("08:10"); 
-    const minAgora = hParaM("08:10")
-    
-    horarios.forEach((viagem) => {
-        const inicioViagem = hParaM(viagem[0]);
-        const fimViagem = hParaM(viagem[viagem.length - 1]);
+    const agora = new Date();
+    const minAgora = agora.getHours() * 60 + agora.getMinutes();
 
-        // Verifica se há um trem nesta viagem circulando agora
-        if (minAgora >= inicioViagem && minAgora <= fimViagem) {
+    // Processar os dois sentidos
+    processarSentido(vltData.horariosIate, vltData.sequenciaIate, "Iate");
+    processarSentido(vltData.horariosParangaba, vltData.sequenciaParangaba, "Parangaba");
+}
+
+function processarSentido(grade, sequencia, nomeSentido) {
+    grade.forEach(viagem => {
+        const inicio = hParaM(viagem[0]);
+        const fim = hParaM(viagem[10]);
+
+        if (minAgora >= inicio && minAgora <= fim) {
             for (let i = 0; i < viagem.length - 1; i++) {
-                const partida = hParaM(viagem[i]);
-                const chegada = hParaM(viagem[i+1]);
+                const p1 = hParaM(viagem[i]);
+                const p2 = hParaM(viagem[i+1]);
 
-                if (minAgora >= partida && minAgora < chegada) {
-                    const progresso = (minAgora - partida) / (chegada - partida);
-                    renderizarTremNoMapa(sequencia[i], sequencia[i+1], progresso, sentido, viagem[i+1]);
+                if (minAgora >= p1 && minAgora < p2) {
+                    const progresso = (minAgora - p1) / (p2 - p1);
+                    criarMarcadorPulsante(sequencia[i], sequencia[i+1], progresso, nomeSentido);
                 }
             }
         }
     });
 }
 
-// 3. Desenha o ícone no mapa com interpolação
-function renderizarTremNoMapa(est1, est2, progresso, sentido, proxHora) {
+function criarMarcadorPulsante(est1, est2, progresso, sentido) {
     const c1 = vltData.estacoes[est1];
     const c2 = vltData.estacoes[est2];
 
+    // Cálculo da posição exata entre as estações
     const lat = c1.lat + (c2.lat - c1.lat) * progresso;
     const lng = c1.lng + (c2.lng - c1.lng) * progresso;
 
-    const marker = L.circleMarker([lat, lng], {
-        color: sentido === 'Iate' ? 'blue' : 'green',
-        fillColor: sentido === 'Iate' ? '#30f' : '#0a0',
-        fillOpacity: 1,
-        radius: 9
-    }).addTo(map);
+    // Ícone customizado com a classe CSS de pulsação
+    const pingIcon = L.divIcon({
+        className: `train-ping ${sentido === 'Iate' ? 'ping-iate' : 'ping-parangaba'}`,
+        iconSize: [12, 12]
+    });
 
-    marker.bindPopup(`<b>VLT - Sentido ${sentido}</b><br>Próxima parada: ${est2} às ${proxHora}`);
+    const marker = L.marker([lat, lng], { icon: pingIcon }).addTo(map);
+    marker.bindPopup(`<b>VLT Sentido ${sentido}</b><br>Entre ${est1} e ${est2}`);
+    
     trainMarkers.push(marker);
 }
 
-// 4. Loop de Atualização
-function atualizarMapa() {
-    // Remove marcadores anteriores
-    trainMarkers.forEach(m => map.removeLayer(m));
-    trainMarkers = [];
-
-    // Processa os dois sentidos do PDF [cite: 4, 8]
-    processarTrens(vltData.horariosIate, vltData.sequenciaIate, "Iate");
-    processarTrens(vltData.horariosParangaba, vltData.sequenciaParangaba, "Parangaba");
-
-    const statusDiv = document.getElementById('status');
-    if (trainMarkers.length === 0) {
-        statusDiv.innerHTML = "Nenhum trem em operação agora.";
-    } else {
-        statusDiv.innerHTML = `${trainMarkers.length} trem(ns) detectado(s).`;
-    }
-}
-
-// Inicia o sistema
+// Atualização minuto a minuto
+setInterval(atualizarMapa, 60000); 
 atualizarMapa();
-setInterval(atualizarMapa, 30000); // Atualiza a cada 30 segundos
