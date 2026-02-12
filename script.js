@@ -5,7 +5,7 @@ const map = L.map('map').setView([-3.7432, -38.5144], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
 }).addTo(map);
-
+//
 let trainMarkers = [];
 
 // Auxiliar: Converte "HH:mm" para minutos totais do dia
