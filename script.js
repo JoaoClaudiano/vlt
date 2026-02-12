@@ -96,6 +96,6 @@ function testarLocalizacao(horaSimulada) {
 // EXECUTE O TESTE AQUI:
 testarLocalizacao("08:10");
 
-// Atualiza a cada 30 segundos
-setInterval(atualizarPosicoes, 30000);
+// Atualiza a cada 10 segundos
+setInterval(atualizarPosicoes, 10000);
 atualizarPosicoes();
