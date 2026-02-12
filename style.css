@@ -1,7 +1,9 @@
 body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
 #map { height: 100vh; width: 100%; z-index: 1; }
+
 #status-panel { 
     position: absolute; top: 10px; left: 10px; z-index: 1000;
     background: white; padding: 15px; border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2); width: 250px;
 }
+
