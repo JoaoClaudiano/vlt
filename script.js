@@ -19,7 +19,7 @@ function processarTrens(horarios, sequencia, sentido) {
     const agora = new Date();
     // Use uma hora fixa para teste se quiser ver funcionando fora do horário comercial:
     // const minAgora = hParaM("08:10"); 
-    const minAgora = agora.getHours() * 60 + agora.getMinutes();
+    const minAgora = hParaM("08:10")
     
     horarios.forEach((viagem) => {
         const inicioViagem = hParaM(viagem[0]);
