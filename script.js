@@ -56,6 +56,45 @@ function desenharTrem(est1, est2, progresso, sentido) {
     trainMarkers.push(marker);
     document.getElementById('info').innerHTML = `Trem detectado em direção ao <b>${sentido}</b>.`;
 }
+import { vltData } from './data.js';
+
+function testarLocalizacao(horaSimulada) {
+    console.log(`--- Testando para o horário: ${horaSimulada} ---`);
+    
+    const hParaM = (hStr) => {
+        const [h, m] = hStr.split(':').map(Number);
+        return h * 60 + m;
+    };
+
+    const minSimulados = hParaM(horaSimulada);
+    let tremEncontrado = false;
+
+    // Testando Sentido Iate
+    vltData.horariosIate.forEach((viagem, index) => {
+        const inicioViagem = hParaM(viagem[0]);
+        const fimViagem = hParaM(viagem[10]);
+
+        if (minSimulados >= inicioViagem && minSimulados <= fimViagem) {
+            for (let i = 0; i < viagem.length - 1; i++) {
+                const partida = hParaM(viagem[i]);
+                const chegada = hParaM(viagem[i+1]);
+
+                if (minSimulados >= partida && minSimulados < chegada) {
+                    tremEncontrado = true;
+                    const progresso = ((minSimulados - partida) / (chegada - partida) * 100).toFixed(0);
+                    console.log(`[SENTIDO IATE] Trem da viagem ${index + 1}:`);
+                    console.log(`> Localização: Entre ${vltData.sequenciaIate[i]} e ${vltData.sequenciaIate[i+1]}`);
+                    console.log(`> Progresso no trecho: ${progresso}%`);
+                }
+            }
+        }
+    });
+
+    if (!tremEncontrado) console.log("Nenhum trem em circulação neste horário.");
+}
+
+// EXECUTE O TESTE AQUI:
+testarLocalizacao("08:10");
 
 // Atualiza a cada 30 segundos
 setInterval(atualizarPosicoes, 30000);
